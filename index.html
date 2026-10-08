@@ -33,7 +33,7 @@ button.d{color:var(--hi)}
 .i-alta .tag{color:var(--hi)}.i-media .tag{color:var(--mid)}.i-bassa .tag{color:var(--lo)}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0 8px}
 .grid button{padding:0;font-size:18px}
-.yn{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px}
+.yn{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0 8px}
 .yn button{font-size:20px;min-height:52px}
 button.on{background:var(--pri);color:var(--onpri);border-color:var(--pri)}
 .mute{color:var(--mute);font-size:14px}
@@ -71,7 +71,7 @@ const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOStr
 const dIt=d=>d.split('-').reverse().join('/');
 const fmt=n=>n==null?'–':n.toFixed(1).replace('.',',');
 let tab='eval',edit=null,pend=null;
-let ev={model:'',op:'',post:'',capo:'',date:today(),ans:{}};
+let ev={model:'',op:'',post:'',capo:'',date:today(),ans:{},note:''};
 const cur=()=>S.models.find(x=>x.id===ev.model);
 const em=()=>S.models.find(x=>x.id===edit);
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3500)}
@@ -86,7 +86,7 @@ function sel(label,list,val,set,hint){
 function rEval(){
   if(!S.models.length)return `<div class="card"><h3>Nessun modello di checklist</h3><p class="mute">Crea prima un modello con le tue domande.</p><button class="p" onclick="go('models')">Vai a Modelli</button></div>`;
   const m=cur();
-  let h=`<div class="card"><label>Modello di checklist<select onchange="ev.model=this.value;ev.ans={};render()"><option value="">Scegli…</option>${S.models.map(x=>`<option value="${x.id}" ${x.id===ev.model?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>
+  let h=`<div class="card"><label>Modello di checklist<select onchange="ev.model=this.value;ev.ans={};ev.note='';render()"><option value="">Scegli…</option>${S.models.map(x=>`<option value="${x.id}" ${x.id===ev.model?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>
   <label>Nome operatore<input value="${esc(ev.op)}" placeholder="Nome e cognome" oninput="ev.op=this.value;rScore()"></label>
   ${sel('Postazione',S.post,ev.post,'ev.post','Aggiungi le postazioni in Elenchi.')}
   ${sel('Capoturno',S.capi,ev.capo,'ev.capo','Aggiungi i capiturno in Elenchi.')}
@@ -98,22 +98,24 @@ function rQs(){
   const m=cur(),e=$('#qs');if(!e)return;
   e.innerHTML=m?m.qs.map((q,i)=>{const a=ev.ans[q.id]||{};
     const inp=q.type==='sino'
-      ?`<div class="yn"><button class="${a.s==='SI'?'on':''}" onclick="ans('${q.id}',10,'SI')">SI</button><button class="${a.s==='NO'?'on':''}" onclick="ans('${q.id}',1,'NO')">NO</button></div>`
-      :`<div class="grid">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="${a.v===n?'on':''}" onclick="ans('${q.id}',${n})">${n}</button>`).join('')}</div>`;
-    return `<div class="card q i-${q.imp}"><div class="qh"><span>${i+1}. ${esc(q.t)}</span><span class="tag">${q.imp}</span></div>${inp}<textarea rows="1" placeholder="Commento (facoltativo)" oninput="cm('${q.id}',this.value)">${esc(a.c||'')}</textarea></div>`}).join(''):'';
+      ?`<div class="yn"><button class="${a.s==='SI'?'on':''}" onclick="ans('${q.id}',10,'SI')">SI</button><button class="${a.s==='NO'?'on':''}" onclick="ans('${q.id}',1,'NO')">NO</button><button class="${a.na?'on':''}" onclick="setNa('${q.id}')">N.A.</button></div>`
+      :`<div class="grid">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="${a.v===n?'on':''}" onclick="ans('${q.id}',${n})">${n}</button>`).join('')}<button style="grid-column:1/-1;min-height:40px" class="${a.na?'on':''}" onclick="setNa('${q.id}')">N.A. (non valutabile)</button></div>`;
+    return `<div class="card q i-${q.imp}"><div class="qh"><span>${i+1}. ${esc(q.t)}</span><span class="tag">${q.imp}</span></div>${inp}<textarea rows="1" placeholder="Commento (facoltativo)" oninput="cm('${q.id}',this.value)">${esc(a.c||'')}</textarea></div>`}).join('')+(m.qs.length?`<div class="card"><label>Considerazioni finali<textarea rows="4" placeholder="Recap di come è andata la valutazione" oninput="ev.note=this.value">${esc(ev.note)}</textarea></label></div>`:''):'';
 }
-function ans(id,v,s){ev.ans[id]=Object.assign({},ev.ans[id],{v,s});rQs();rScore()}
+function ans(id,v,s){ev.ans[id]=Object.assign({},ev.ans[id],{v,s,na:false});rQs();rScore()}
+function setNa(id){ev.ans[id]=Object.assign({},ev.ans[id],{v:null,s:null,na:true});rQs();rScore()}
+const isAns=a=>!!a&&(a.v!=null||a.na===true);
 function cm(id,t){ev.ans[id]=Object.assign({},ev.ans[id],{c:t})}
 function missing(){
   const m=cur(),x=[];if(!m)return ['modello'];
   if(!ev.op.trim())x.push('operatore');if(!ev.post)x.push('postazione');if(!ev.capo)x.push('capoturno');if(!ev.date)x.push('data');
-  const n=m.qs.filter(q=>!(ev.ans[q.id]&&ev.ans[q.id].v!=null)).length;if(n)x.push(n+(n===1?' domanda':' domande'));
+  const n=m.qs.filter(q=>!isAns(ev.ans[q.id])).length;if(n)x.push(n+(n===1?' domanda':' domande'));else if(m.qs.length&&calc(m)==null)x.push('almeno una domanda valutata');
   if(!m.qs.length)x.push('domande nel modello');
   return x}
 function rScore(){
   const w=$('#sbw');if(tab!=='eval'){w.innerHTML='';return}
   const m=cur();if(!m){w.innerHTML='';return}
-  const done=m.qs.filter(q=>ev.ans[q.id]&&ev.ans[q.id].v!=null).length,ms=missing();
+  const done=m.qs.filter(q=>isAns(ev.ans[q.id])).length,ms=missing();
   w.innerHTML=`<div class="sb"><div class="sc"><span class="mute">Voto finale</span><span class="big">${fmt(calc(m))}</span>/10<small>${done}/${m.qs.length} risposte</small></div><button class="p" ${ms.length?'disabled':''} onclick="pdfShare()">Condividi</button><button ${ms.length?'disabled':''} onclick="pdfSave()">Salva PDF</button></div>${ms.length?`<div class="miss">Mancano: ${ms.join(', ')}</div>`:''}`;
 }
 
@@ -132,7 +134,7 @@ function rModels(){
 }
 function newm(){const m={id:uid(),name:'Nuovo modello',qs:[]};S.models.push(m);save();edit=m.id;render()}
 function dup(id){const m=S.models.find(x=>x.id===id);S.models.push({id:uid(),name:m.name+' (copia)',qs:m.qs.map(q=>Object.assign({},q,{id:uid()}))});save();render()}
-function delm(id){S.models=S.models.filter(x=>x.id!==id);if(ev.model===id){ev.model='';ev.ans={}}save();render()}
+function delm(id){S.models=S.models.filter(x=>x.id!==id);if(ev.model===id){ev.model='';ev.ans={};ev.note=''}save();render()}
 function addq(){em().qs.push({id:uid(),t:'',type:'voto',imp:'media'});save();render()}
 function qf(id,k,v){em().qs.find(q=>q.id===id)[k]=v;save()}
 function delq(id){const m=em();m.qs=m.qs.filter(q=>q.id!==id);save();render()}
@@ -174,6 +176,8 @@ function buildPdf(){
   d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mu);d.text('Voto finale',175,53,{align:'center'});
   d.setFont('helvetica','bold');d.setFontSize(26);d.setTextColor(...pr);d.text(fmt(sc),175,66,{align:'center'});
   d.setFont('helvetica','normal');d.setFontSize(9);d.setTextColor(...mu);d.text('su 10',175,71.5,{align:'center'});
+  const nna=m.qs.filter(q=>ev.ans[q.id].na).length;
+  if(nna){d.setFont('helvetica','italic');d.setFontSize(8.5);d.setTextColor(...mu);d.text('Domande non valutate (N.A.), escluse dal voto: '+nna+' su '+m.qs.length,M,83)}
   let y=90;
   const head=()=>{d.setFillColor(227,238,243);d.rect(M,y-5,180,8,'F');d.setFont('helvetica','bold');d.setFontSize(9);d.setTextColor(...ink);
     d.text('Domanda',M+2,y);d.text('Importanza',128,y);d.text('Risposta',172,y);y+=7};
@@ -186,11 +190,18 @@ function buildPdf(){
     if(y+h>280){d.addPage();y=20;head()}
     d.setFont('helvetica','normal');d.setFontSize(10);d.setTextColor(...ink);d.text(ql,M+2,y);
     d.setFontSize(9);d.text(q.imp,128,y);
-    d.setFont('helvetica','bold');d.setFontSize(10);d.text(q.type==='sino'?a.s:a.v+'/10',172,y);
+    d.setFont('helvetica','bold');d.setFontSize(10);d.text(a.na?'N.A.':(q.type==='sino'?a.s:a.v+'/10'),172,y);
     let yy=y+ql.length*4.8;
     if(cl.length){d.setFont('helvetica','italic');d.setFontSize(9);d.setTextColor(...mu);d.text(cl,M+2,yy-.3);yy+=cl.length*4.3}
     d.setDrawColor(213,220,225);d.setLineWidth(.2);d.line(M,yy-1,195,yy-1);
     y+=h});
+  const nt=ev.note.trim();
+  if(nt){
+    if(y+16>280){d.addPage();y=20}
+    y+=4;d.setFont('helvetica','bold');d.setFontSize(11);d.setTextColor(...ink);d.text('Considerazioni finali',M,y);y+=6;
+    d.setFont('helvetica','normal');d.setFontSize(10);
+    d.splitTextToSize(nt,180).forEach(l=>{if(y>280){d.addPage();y=20}d.text(l,M,y);y+=4.8});
+  }
   const n=d.getNumberOfPages();
   for(let p=1;p<=n;p++){d.setPage(p);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(...mu);d.text('Pagina '+p+' di '+n,195,290,{align:'right'});d.text(ev.op.trim()+' · '+dIt(ev.date),M,290)}
   return {blob:d.output('blob'),name:'Valutazione_'+ev.op.trim().replace(/[^A-Za-z0-9]+/g,'_')+'_'+ev.date+'.pdf'};
